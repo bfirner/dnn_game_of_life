@@ -7,13 +7,14 @@ import torch.nn as nn
 class Net(torch.nn.Module):
     """Network that demonstrates some fundamentals of fitting."""
 
-    def __init__(self, num_steps=1, m_factor=1, presolve=True):
+    def __init__(self, num_steps=1, m_factor=1, presolve=True, activation=nn.ReLU):
         """Initialize the demonstration network with a single output.
 
         Arguments:
             num_steps              (int): There will be one additional 3x3 convolution per step.
             m_factor (int): Multiplication factor. Multiply number of feature maps by this amount.
             presolve (bool): Initialize weights and bias values to the solution if True.
+            activation (constructor): The class constructor for the activation function to use.
         """
         super(Net, self).__init__()
         self.net = torch.nn.ModuleList()
@@ -30,15 +31,22 @@ class Net(torch.nn.Module):
                     self.net[-1].weight[1][0] = self.weighted_sum
                     self.net[-1].bias[0] = -2
                     self.net[-1].bias[1] = -3.5
-                self.net.append(nn.ReLU())
+                self.net.append(activation())
                 self.net.append(
                     nn.Conv2d(
                         in_channels=2*m_factor, out_channels=1, kernel_size=1, stride=1, padding=0))
+                # Note that presolving with multiple steps doesn't work with these values since they
+                # are tuned for the Sigmoid.
                 if presolve:
                     self.net[-1].weight[0][0] = 200
                     self.net[-1].weight[0][1] = -800
                     self.net[-1].bias[0] = -10
-                self.net.append(nn.Sigmoid())
+                # It is impossible to output a 0 through the sigmoid if the ReLU appears before it.
+                # Skip it on the last step.
+                last_step = (step+1 == num_steps)
+                if not last_step:
+                    self.net.append(activation())
+            self.net.append(nn.Sigmoid())
 
     def forward(self, x):
         for layer in self.net:
@@ -102,14 +110,19 @@ inparser.add_argument(
 inparser.add_argument(
     '--demo', default=False, action='store_true',
     help='Just print out some examples from the game of life.')
+inparser.add_argument(
+    '--activation_fun',
+    required=False,
+    default='ReLU',
+    choices=['ReLU', 'ELU', 'LeakyReLU', 'RReLU', 'GELU'],
+    type=str,
+    help="Nonlinear activation function to use in the network.")
 args = inparser.parse_args()
 
-net = Net(num_steps=args.steps, m_factor=args.m_factor, presolve=args.presolve)
+afun = getattr(torch.nn, args.activation_fun)
+net = Net(num_steps=args.steps, m_factor=args.m_factor, presolve=args.presolve, activation=afun)
 optimizer = torch.optim.Adam(net.parameters())
-#loss_fn = torch.nn.BCEWithLogitsLoss()
 loss_fn = torch.nn.BCELoss()
-#loss_fn = torch.nn.L1Loss()
-#loss_fn = torch.nn.MSELoss()
 
 datagen = DataGenerator()
 
@@ -136,7 +149,7 @@ for batch_num in range(args.batches):
             print(f"Batch {batch_num} loss is {loss.mean()}")
             for i, layer in enumerate(net.net):
                 if hasattr(layer, 'weight'):
-                    print(f"At batch {batch_num} layer {i} has weights {layer.weight.tolist()[0]} and bias {layer.bias.tolist()[0]}")
+                    print(f"At batch {batch_num} layer {i} has weights {layer.weight.tolist()} and bias {layer.bias.tolist()}")
     loss.backward()
     optimizer.step()
 
@@ -144,7 +157,7 @@ for batch_num in range(args.batches):
 print("Final layer weights are:")
 for i, layer in enumerate(net.net):
     if hasattr(layer, 'weight'):
-        print(f"Final layer {i} weights are {layer.weight.tolist()[0]} and bias is {layer.bias.tolist()[0]}")
+        print(f"Final layer {i} weights are {layer.weight.tolist()} and bias is {layer.bias.tolist()}")
 
 # Show some results with the final network.
 batch, labels = datagen.getBatch(batch_size=10, dimensions=(3, 3), steps=args.steps)
@@ -156,7 +169,7 @@ for idx in range(10):
     print(f"Batch")
     print(f"{batch[idx]}")
     print(f"=>")
-    print(f"Outputs (rounded)")
+    print(f"NN Outputs")
     print(f"{outputs[idx]}")
     print(f"=>")
     print(f"Labels")
