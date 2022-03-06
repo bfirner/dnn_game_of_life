@@ -69,12 +69,15 @@ class DataGenerator():
         """
         with torch.no_grad():
             batch = torch.randint(low=0, high=2, size=(batch_size, 1, *dimensions)).float()
+            output = batch
 
-            output = self.relu(nn.functional.conv2d(
-                input=batch, weight=self.conv_1_weights, bias=self.bias_1, stride=1, padding=1))
+            for _ in range(steps):
 
-            output = torch.round(self.sigmoid(nn.functional.conv2d(
-                input=output, weight=self.conv_2_weights, bias=self.bias_2, stride=1, padding=0)))
+                output = self.relu(nn.functional.conv2d(
+                    input=output, weight=self.conv_1_weights, bias=self.bias_1, stride=1, padding=1))
+
+                output = torch.round(self.sigmoid(nn.functional.conv2d(
+                    input=output, weight=self.conv_2_weights, bias=self.bias_2, stride=1, padding=0)))
 
         return batch, output
 
@@ -146,7 +149,7 @@ for i, layer in enumerate(net.net):
 # Show some results with the final network.
 batch, labels = datagen.getBatch(batch_size=10, dimensions=(3, 3), steps=args.steps)
 net = net.eval()
-outputs = net(batch).round()
+outputs = net(batch)
 
 print("Final network results are:")
 for idx in range(10):
