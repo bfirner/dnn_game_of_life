@@ -7,7 +7,7 @@ import torch.nn as nn
 class Net(torch.nn.Module):
     """Network that demonstrates some fundamentals of fitting."""
 
-    def __init__(self, num_steps=1, m_factor=1, presolve=True, activation=nn.ReLU):
+    def __init__(self, num_steps=1, m_factor=1, presolve=True, activation=nn.ReLU, use_sigmoid=False):
         """Initialize the demonstration network with a single output.
 
         Arguments:
@@ -23,6 +23,8 @@ class Net(torch.nn.Module):
             self.weighted_sum = torch.tensor([[0.,1.,0.], [1.,0.5,1.], [0.,1.,0.]])
 
             for step in range(num_steps):
+                last_step = (step+1 == num_steps)
+
                 self.net.append(
                     nn.Conv2d(
                         in_channels=1, out_channels=2*m_factor, kernel_size=3, stride=1, padding=1))
@@ -32,21 +34,41 @@ class Net(torch.nn.Module):
                     self.net[-1].bias[0] = -2
                     self.net[-1].bias[1] = -3.5
                 self.net.append(activation())
+
                 self.net.append(
                     nn.Conv2d(
-                        in_channels=2*m_factor, out_channels=1, kernel_size=1, stride=1, padding=0))
-                # Note that presolving with multiple steps doesn't work with these values since they
-                # are tuned for the Sigmoid.
+                        in_channels=2*m_factor, out_channels=m_factor, kernel_size=1, stride=1, padding=0))
+                # The final output should end up 0 when the second layer is 4 times the first. Use a
+                # ratio of 1:5 instead of 1:4 to move the output away from 0.  The next layer will
+                # set an exact output 1 using bias, so if the output should be alive make it
+                # negative here. A negative weight at the next layer will map a positive output from
+                # this layer to 0 once it passes through a ReLU.
                 if presolve:
-                    self.net[-1].weight[0][0] = 200
-                    self.net[-1].weight[0][1] = -800
-                    self.net[-1].bias[0] = -10
+                    self.net[-1].weight[0][0] = -2
+                    self.net[-1].weight[0][1] = 10
+                    self.net[-1].bias[0] = 1
+                self.net.append(activation())
+
+                self.net.append(
+                    nn.Conv2d(
+                        in_channels=m_factor, out_channels=1, kernel_size=1, stride=1, padding=0))
+                if presolve:
+                    if use_sigmoid and last_step:
+                        # Set things up for the sigmoid
+                        self.net[-1].weight[0][0] = -20
+                        self.net[-1].bias[0] = 10
+                    else:
+                        # Any negative value will turn to 0 when going through the ReLU
+                        self.net[-1].weight[0][0] = -2
+                        self.net[-1].bias[0] = 1
+
+
                 # It is impossible to output a 0 through the sigmoid if the ReLU appears before it.
                 # Skip it on the last step.
-                last_step = (step+1 == num_steps)
-                if not last_step:
+                if not (last_step and use_sigmoid):
                     self.net.append(activation())
-            self.net.append(nn.Sigmoid())
+            if use_sigmoid:
+                self.net.append(nn.Sigmoid())
 
     def forward(self, x):
         for layer in self.net:
@@ -102,6 +124,9 @@ inparser.add_argument(
     '--presolve', default=False, action='store_true',
     help='Presolve the network weights.')
 inparser.add_argument(
+    '--use_sigmoid', default=False, action='store_true',
+    help='Use a sigmoid at the end of the network instead of the usual activation function.')
+inparser.add_argument(
     '--batches', default=5000, type=int,
     help='Total number of training batches.')
 inparser.add_argument(
@@ -120,7 +145,8 @@ inparser.add_argument(
 args = inparser.parse_args()
 
 afun = getattr(torch.nn, args.activation_fun)
-net = Net(num_steps=args.steps, m_factor=args.m_factor, presolve=args.presolve, activation=afun)
+net = Net(num_steps=args.steps, m_factor=args.m_factor, presolve=args.presolve, activation=afun,
+        use_sigmoid=args.use_sigmoid)
 optimizer = torch.optim.Adam(net.parameters())
 loss_fn = torch.nn.BCELoss()
 
@@ -147,9 +173,11 @@ for batch_num in range(args.batches):
     if 0 == batch_num % 1000:
         with torch.no_grad():
             print(f"Batch {batch_num} loss is {loss.mean()}")
-            for i, layer in enumerate(net.net):
-                if hasattr(layer, 'weight'):
-                    print(f"At batch {batch_num} layer {i} has weights {layer.weight.tolist()} and bias {layer.bias.tolist()}")
+            # This is a bit too spammy with larger networks.
+            if 1 == args.steps:
+                for i, layer in enumerate(net.net):
+                    if hasattr(layer, 'weight'):
+                        print(f"At batch {batch_num} layer {i} has weights {layer.weight.tolist()} and bias {layer.bias.tolist()}")
     loss.backward()
     optimizer.step()
 
