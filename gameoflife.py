@@ -15,6 +15,9 @@ inparser.add_argument(
     '--steps', type=int, default=1,
     help='Number of steps to predict.')
 inparser.add_argument(
+    '--seed', type=int, default=1,
+    help='Seed for the random number generator.')
+inparser.add_argument(
     '--m_factor', type=int, default=1,
     help='Overprovisioning factor for the neural network width.')
 inparser.add_argument(
@@ -54,6 +57,8 @@ inparser.add_argument(
     required=False,
     help='Model weights to restore.')
 args = inparser.parse_args()
+
+torch.random.manual_seed(args.seed)
 
 afun = getattr(torch.nn, args.activation_fun)
 lr_scheduler = None
