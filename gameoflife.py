@@ -56,6 +56,9 @@ inparser.add_argument(
     type=str,
     required=False,
     help='Model weights to restore.')
+inparser.add_argument(
+    '--use_cuda', default=False, action='store_true',
+    help='Use the default cuda device for model training.')
 args = inparser.parse_args()
 
 torch.random.manual_seed(args.seed)
