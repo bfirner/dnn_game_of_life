@@ -39,6 +39,9 @@ inparser.add_argument(
     '--normalize', default=False, action='store_true',
     help="Normalize hidden layer outputs.")
 inparser.add_argument(
+    '--use_cuda', default=False, action='store_true',
+    help='Use the default cuda device for model training.')
+inparser.add_argument(
     '--activation_fun',
     required=False,
     default='ReLU',
@@ -59,17 +62,16 @@ args = inparser.parse_args()
 
 afun = getattr(torch.nn, args.activation_fun)
 lr_scheduler = None
-use_cuda = True
 if not args.weight_init and not args.normalize:
     net = Net(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, presolve=args.presolve, activation=afun,
             use_sigmoid=args.use_sigmoid)
-    if use_cuda:
+    if args.use_cuda:
         net = net.cuda()
     optimizer = torch.optim.Adam(net.parameters())
 else:
     net = BetterNet(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, activation=afun,
             weight_init=args.weight_init, normalize=args.normalize)
-    if use_cuda:
+    if args.use_cuda:
         net = net.cuda()
     optimizer = torch.optim.Adam(net.parameters())
     # Adam and other optimizers adjust the learning rate automatically. But let's say that we think
@@ -131,7 +133,7 @@ with torch.no_grad():
         torch.random.manual_seed(0)
         for batch_num in range(args.batches):
             batch, labels = datagen.getBatch(batch_size=args.batch_size, dimensions=(10, 10), steps=args.steps)
-            if use_cuda:
+            if args.use_cuda:
                 out = net.forward(batch.cuda())
                 loss = loss_fn(out, labels.cuda())
             else:
