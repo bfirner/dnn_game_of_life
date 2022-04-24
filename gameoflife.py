@@ -65,17 +65,16 @@ torch.random.manual_seed(args.seed)
 
 afun = getattr(torch.nn, args.activation_fun)
 lr_scheduler = None
-use_cuda = True
 if not args.weight_init and not args.normalize:
     net = Net(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, presolve=args.presolve, activation=afun,
             use_sigmoid=args.use_sigmoid)
-    if use_cuda:
+    if args.use_cuda:
         net = net.cuda()
     optimizer = torch.optim.Adam(net.parameters())
 else:
     net = BetterNet(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, activation=afun,
             weight_init=args.weight_init, normalize=args.normalize)
-    if use_cuda:
+    if args.use_cuda:
         net = net.cuda()
     optimizer = torch.optim.Adam(net.parameters())
     # Adam and other optimizers adjust the learning rate automatically. But let's say that we think
@@ -110,7 +109,7 @@ losses = []
 for batch_num in range(args.batches):
     batch, labels = datagen.getBatch(batch_size=args.batch_size, dimensions=(10, 10), steps=args.steps)
     optimizer.zero_grad()
-    if use_cuda:
+    if args.use_cuda:
         out = net.forward(batch.cuda())
         loss = loss_fn(out, labels.cuda())
     else:
@@ -155,7 +154,7 @@ torch.save({
 # Show some results with the final network.
 batch, labels = datagen.getBatch(batch_size=10, dimensions=(5, 5), steps=args.steps)
 net = net.eval()
-if use_cuda:
+if args.use_cuda:
     outputs = net(batch.cuda())
 else:
     outputs = net(batch)
@@ -176,7 +175,7 @@ for idx in range(10):
 
 batch, labels = datagen.getBatch(batch_size=1000, dimensions=(5, 5), steps=args.steps)
 net = net.eval()
-if use_cuda:
+if args.use_cuda:
     outputs = net(batch.cuda()).round()
     labels = labels.cuda()
 else:
