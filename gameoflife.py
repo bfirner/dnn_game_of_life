@@ -9,7 +9,6 @@ from gameoflifegenerator import DataGenerator
 from gameoflifemodels import (Net, BetterNet)
 
 
-
 def main():
     inparser = argparse.ArgumentParser(
         description="Arguments for the noise training script.")
