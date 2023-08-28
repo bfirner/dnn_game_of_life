@@ -20,18 +20,18 @@ should be able to determine the next state.
 
 The network defined in PyTorch looks something like this:
 
->Net(
-  (net): ModuleList(
-    (0): Sequential(
-      (0): Conv2d(1, 2, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
-      (1): ReLU()
-      (2): Conv2d(2, 1, kernel_size=(1, 1), stride=(1, 1))
-      (3): ReLU()
-      (4): Conv2d(1, 1, kernel_size=(1, 1), stride=(1, 1))
-      (5): ReLU()
+    Net(
+      (net): ModuleList(
+        (0): Sequential(
+          (0): Conv2d(1, 2, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+          (1): ReLU()
+          (2): Conv2d(2, 1, kernel_size=(1, 1), stride=(1, 1))
+          (3): ReLU()
+          (4): Conv2d(1, 1, kernel_size=(1, 1), stride=(1, 1))
+          (5): ReLU()
+        )
+      )
     )
-  )
-)
 
 There are two convolution kernels in the first layer to separate the two different thresholds:
 * The minimum number of neighbors for a cell to be alive in the next step
