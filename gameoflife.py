@@ -150,7 +150,8 @@ def main():
     torch.save({
         "model_dict": net.state_dict(),
         "optim_dict": optimizer.state_dict(),
-        }, "gol_model.pyt")
+        }, "gol_model_steps{}_m{}_d{}_seed{}.pyt".format(args.steps, args.m_factor, args.d_factor,
+            args.seed))
 
     # Show some results with the final network.
     batch, labels = datagen.getBatch(batch_size=10, dimensions=(5, 5), steps=args.steps)
@@ -184,7 +185,7 @@ def main():
     matches = 0
     for idx in range(1000):
         # TODO Add an option that allows for close matches, not just exact
-        if outputs[idx].equal(labels[idx]):
+        if outputs[idx].round().equal(labels[idx]):
             matches += 1
     print(f"Success rate: {matches/1000.}")
     if 1000 == matches:
