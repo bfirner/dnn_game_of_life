@@ -64,31 +64,26 @@ afun = getattr(torch.nn, args.activation_fun)
 lr_scheduler = None
 if not args.weight_init and not args.normalize:
     net = Net(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, presolve=args.presolve, activation=afun,
-            use_sigmoid=args.use_sigmoid)
+        use_sigmoid=args.use_sigmoid)
     if args.use_cuda:
         net = net.cuda()
-    optimizer = torch.optim.Adam(net.parameters())
 else:
     net = BetterNet(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, activation=afun,
             weight_init=args.weight_init, normalize=args.normalize)
     if args.use_cuda:
         net = net.cuda()
-    optimizer = torch.optim.Adam(net.parameters())
-    # Adam and other optimizers adjust the learning rate automatically. But let's say that we think
-    # we know better. This is all hand-crafted hyperparameter optimization at its finest.
-    #optimizer = torch.optim.SGD(net.parameters(), lr=0.01, momentum=0.2)
-    #lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[8], gamma=0.1)
 
 # Load existing model weights if requested.
 if args.resume_from is not None:
     checkpoint = torch.load(args.resume_from)
     net.load_state_dict(checkpoint["model_dict"])
-    optimizer.load_state_dict(checkpoint["optim_dict"])
 
 # Find a random basis vector to take the walk.
 # Convert the model parameters to a single vector to make it simpler to modify them. The vector can
 # be converted back to parameters with torch.nn.util.vector_to_parameters(vector, parameters)
 param_vector = torch.nn.utils.parameters_to_vector(net.parameters())
+if args.use_cuda:
+    param_vector = param_vector.cuda()
 
 # Create a basis vector with random values and then scale so that the magnitude of the vector is 1.
 # Now each addition of this basis vector with take a unit step along a plane.
@@ -99,7 +94,7 @@ basis_vector = (basis_vector / basis_vector.abs().sum()).cuda()
 step_sizes = [0.0] + [0.1] * 10 + [1] * 29
 
 if args.destination_weights is not None:
-    # Store the currente weights, verify that the new state fits into the model, remember them as
+    # Store the current weights, verify that the new state fits into the model, remember them as
     # the target, then restore the original weights.
     original_weights = torch.nn.utils.parameters_to_vector(net.parameters())
     checkpoint = torch.load(args.destination_weights)
@@ -109,12 +104,12 @@ if args.destination_weights is not None:
 
     diff_vector = target_weights - original_weights
     magnitude = diff_vector.abs().sum()
-    basis_vector = (diff_vector / magnitude).cuda()
+    basis_vector = (diff_vector / magnitude)
 
-    # Go from the initial state to the destination in 30 steps.
+    # Go from the initial state to the destination in 50 steps.
     step_sizes = [0.]
-    for i in range(1, 31):
-        step_sizes.append(magnitude/30.)
+    for i in range(50):
+        step_sizes.append(magnitude/50.)
 
 
 loss_fn = torch.nn.BCELoss()
@@ -129,6 +124,11 @@ distance = 0.
 with torch.no_grad():
     for step in step_sizes:
         distance += step
+        # Take a step along the basis vector. Adding small steps accumulates error, add the delta to
+        # the original parameters directly.
+        #param_vector.add_(basis_vector*step)
+        param_vector.copy_(original_weights + distance*basis_vector)
+        torch.nn.utils.vector_to_parameters(param_vector, net.parameters())
         # Reset the RNG state so that the datagen returns the same batches each time.
         torch.random.manual_seed(0)
         for batch_num in range(args.batches):
@@ -145,9 +145,6 @@ with torch.no_grad():
         last_mean_loss = sum(losses)/len(losses)
         losses = []
         print(f"Step {distance} loss {last_mean_loss}")
-        # Take a step along the basis vector
-        param_vector.add_(basis_vector*step)
-        torch.nn.utils.vector_to_parameters(param_vector, net.parameters())
 
 
 exit()

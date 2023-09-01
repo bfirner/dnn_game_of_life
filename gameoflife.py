@@ -147,11 +147,14 @@ def main():
     print(f"After {args.batches} mean loss was {last_mean_loss}")
 
 
+    # Describe the options used to train this model.
+    output_name = "gol_model_steps{}_m{}_d{}_seed{}.pyt".format(args.steps, args.m_factor, args.d_factor, args.seed)
+    if args.presolve:
+        output_name = "gol_model_presolve_steps{}_m{}_d{}_seed{}.pyt".format(args.steps, args.m_factor, args.d_factor, args.seed)
     torch.save({
         "model_dict": net.state_dict(),
         "optim_dict": optimizer.state_dict(),
-        }, "gol_model_steps{}_m{}_d{}_seed{}.pyt".format(args.steps, args.m_factor, args.d_factor,
-            args.seed))
+        }, output_name)
 
     # Show some results with the final network.
     batch, labels = datagen.getBatch(batch_size=10, dimensions=(5, 5), steps=args.steps)
