@@ -53,14 +53,14 @@ def main():
     args = inparser.parse_args()
 
     afun = getattr(torch.nn, args.activation_fun)
-    if not args.weight_init and not args.normalize:
+    if not args.normalize:
         net = Net(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, presolve=args.presolve, activation=afun,
                 use_sigmoid=args.use_sigmoid)
         if args.use_cuda:
             net = net.cuda()
     else:
         net = BetterNet(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, activation=afun,
-                weight_init=args.weight_init, normalize=args.normalize)
+                normalize=args.normalize)
         if args.use_cuda:
             net = net.cuda()
 

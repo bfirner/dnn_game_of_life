@@ -4,7 +4,8 @@ import torch.nn as nn
 class Net(torch.nn.Module):
     """Network that demonstrates some fundamentals of fitting."""
 
-    def __init__(self, num_steps=1, m_factor=1, presolve=True, activation=nn.ReLU, use_sigmoid=False):
+    def __init__(self, num_steps=1, m_factor=1, presolve=True, activation=nn.ReLU,
+            use_sigmoid=False, solve_layers=[]):
         """Initialize the demonstration network with a single output.
 
         Arguments:
@@ -12,6 +13,7 @@ class Net(torch.nn.Module):
             m_factor (int): Multiplication factor. Multiply number of feature maps by this amount.
             presolve (bool): Initialize weights and bias values to the solution if True.
             activation (constructor): The class constructor for the activation function to use.
+            solve_layers (List[int]): Individual layers to presolve
         """
         super(Net, self).__init__()
         self.net = torch.nn.ModuleList()
@@ -26,11 +28,14 @@ class Net(torch.nn.Module):
                 block.append(
                     nn.Conv2d(
                         in_channels=1, out_channels=2*m_factor, kernel_size=3, stride=1, padding=1))
-                if presolve:
+                if presolve or (step in solve_layers):
                     block[-1].weight[0][0] = self.weighted_sum
                     block[-1].weight[1][0] = self.weighted_sum
                     block[-1].bias[0] = -2
                     block[-1].bias[1] = -3.5
+                    # Zero any excess layers
+                    block[-1].weight[2:].fill_(0.)
+                    block[-1].bias[2:].fill_(0.)
                 block.append(activation())
 
                 block.append(
@@ -41,16 +46,19 @@ class Net(torch.nn.Module):
                 # set an exact output 1 using bias, so if the output should be alive make it
                 # negative here. A negative weight at the next layer will map a positive output from
                 # this layer to 0 once it passes through a ReLU.
-                if presolve:
+                if presolve or (step in solve_layers):
                     block[-1].weight[0][0] = -2
                     block[-1].weight[0][1] = 10
                     block[-1].bias[0] = 1
+                    # Zero any excess layers
+                    block[-1].weight[1:].fill_(0.)
+                    block[-1].bias[1:].fill_(0.)
                 block.append(activation())
 
                 block.append(
                     nn.Conv2d(
                         in_channels=m_factor, out_channels=1, kernel_size=1, stride=1, padding=0))
-                if presolve:
+                if presolve or (step in solve_layers):
                     if use_sigmoid and last_step:
                         # Set things up for the sigmoid
                         block[-1].weight[0][0] = -20
@@ -59,7 +67,9 @@ class Net(torch.nn.Module):
                         # Any negative value will turn to 0 when going through the ReLU
                         block[-1].weight[0][0] = -2
                         block[-1].bias[0] = 1
-
+                    # Zero any excess layers
+                    block[-1].weight[1:].fill_(0.)
+                    block[-1].bias[1:].fill_(0.)
 
                 # It is impossible to output a 0 through the sigmoid if the ReLU appears before it.
                 # Skip it on the last step.
@@ -80,14 +90,13 @@ class Net(torch.nn.Module):
 class BetterNet(Net):
     """Network with normalization as is normally seen in modern DNNs."""
 
-    def __init__(self, num_steps=1, m_factor=1, activation=nn.ReLU, weight_init=True, normalize=True):
+    def __init__(self, num_steps=1, m_factor=1, activation=nn.ReLU, normalize=True):
         """Initialize the demonstration network with a single output.
 
         Arguments:
             num_steps              (int): There will be one additional 3x3 convolution per step.
             m_factor (int): Multiplication factor. Multiply number of feature maps by this amount.
             activation (constructor): The class constructor for the activation function to use.
-            weight_init (bool):
             normalize (bool):
         """
         # Initialize the parent model.

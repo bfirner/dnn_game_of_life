@@ -26,6 +26,9 @@ def main():
         help='Overprovisioning factor for the neural network depth.')
     inparser.add_argument(
         '--presolve', default=False, action='store_true',
+        help='Presolve only the given steps within the network.')
+    inparser.add_argument(
+        '--solve_layers', nargs="+", default=[], type=int,
         help='Presolve the network weights.')
     inparser.add_argument(
         '--use_sigmoid', default=False, action='store_true',
@@ -66,15 +69,16 @@ def main():
 
     afun = getattr(torch.nn, args.activation_fun)
     lr_scheduler = None
-    if not args.weight_init and not args.normalize:
-        net = Net(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, presolve=args.presolve, activation=afun,
+    if not args.normalize:
+        net = Net(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor,
+                presolve=args.presolve, solve_layers=args.solve_layers, activation=afun,
                 use_sigmoid=args.use_sigmoid)
         if args.use_cuda:
             net = net.cuda()
         optimizer = torch.optim.Adam(net.parameters())
     else:
         net = BetterNet(num_steps=math.floor(args.steps*args.d_factor), m_factor=args.m_factor, activation=afun,
-                weight_init=args.weight_init, normalize=args.normalize)
+                normalize=args.normalize)
         if args.use_cuda:
             net = net.cuda()
         optimizer = torch.optim.Adam(net.parameters())
@@ -110,6 +114,8 @@ def main():
     for batch_num in range(args.batches):
         batch, labels = datagen.getBatch(batch_size=args.batch_size, dimensions=(10, 10), steps=args.steps)
         optimizer.zero_grad()
+        # TODO FIXME Outputs must be between 0 and 1, which is not true if a sigmoid is not the last
+        # layer. Apply a clamp.
         if args.use_cuda:
             out = net.forward(batch.cuda())
             loss = loss_fn(out, labels.cuda())
