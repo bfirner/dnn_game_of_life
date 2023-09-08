@@ -118,9 +118,13 @@ def main():
         # layer. Apply a clamp.
         if args.use_cuda:
             out = net.forward(batch.cuda())
+            if not args.use_sigmoid:
+                out = out.clamp(0., 1.)
             loss = loss_fn(out, labels.cuda())
         else:
             out = net.forward(batch)
+            if not args.use_sigmoid:
+                out = out.clamp(0., 1.)
             loss = loss_fn(out, labels)
         with torch.no_grad():
             losses.append(loss.mean())
@@ -187,10 +191,10 @@ def main():
     batch, labels = datagen.getBatch(batch_size=1000, dimensions=(5, 5), steps=args.steps)
     net = net.eval()
     if args.use_cuda:
-        outputs = net(batch.cuda()).round()
+        outputs = net(batch.cuda()).clamp(0., 1.).round()
         labels = labels.cuda()
     else:
-        outputs = net(batch).round()
+        outputs = net(batch).clamp(0., 1.).round()
     matches = 0
     for idx in range(1000):
         # TODO Add an option that allows for close matches, not just exact
